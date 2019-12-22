@@ -17,7 +17,7 @@ class WebGLFrame
         this.canvas     = null;
         this.gl         = null;
         this.running    = false;
-        this.begginTime = 0;
+        this.beginTime = 0;
         this.nowTime    = 0;
 
         this.render = this.render.bind(this);
@@ -28,7 +28,7 @@ class WebGLFrame
             this.canvas = canvas;
         }else if(Object.prototype.toString.call(canvas) === '[object String]'){
             let new_canvas = document.querySelector(`#${canvas}`);
-            this.canvs = new_canvas;
+            this.canvas = new_canvas;
         }
 
         if(this.canvas == null){
@@ -41,16 +41,108 @@ class WebGLFrame
         }
     }
 
-    load(){
-        // シェーダやテクスチャ用画像を非同期で取得する
+     load(){    // シェーダオブジェクト生成およびプログラムオブジェクトの生成
+
+        this.program        = null;
+        this.attLocation    = null;
+        this.attStride      = null;
+        this.uniLocation    = null;
+        this.uniType        = null;
+
+        return new Promise((resolve) => {
+            let gl = this.gl;
+            this.loadShader([
+                './vertex1.vert',
+                './fragment1.frag'
+            ]).then((shaders) => {
+                let gl = this.gl;
+
+                // シェーダオブジェクトの生成
+                let vs = this.createShader(shaders[0], gl.VERTEX_SHADER);
+                let fs = this.createShader(shaders[1], gl.FRAGMENT_SHADER);
+
+                // シェーダをリンクする
+                this.program = this.createProgram(vs, fs);
+
+                // リンクが正しく完了したら attribute location をプログラムオブジェクトより取得する 
+                this.attLocation = [
+                    gl.getAttribLocation(this.program, 'position'),
+                ];
+
+                this.attStride = [
+                    3,
+                ];
+
+                this.uniLocation = [
+                    gl.getUniformLocation(this.program, 'globalColor'),
+                ];
+
+                this.uniType = [
+                    'uniform4fv',
+                ];
+
+                resolve();
+            });
+        });
+
     }
 
-    setup(){
-        // レンダリングの前準備
+    setup(){    // レンダリングの前準備
+        let gl = this.gl;
+
+        this.position = [
+            0.0, 0.0, 0.0,
+            -0.5, 0.5, 0.0,
+            0.5, 0.5, 0.0,
+            -0.5, -0.5, 0.0,
+            0.5, -0.5, 0.0
+        ];
+
+        // 定義した頂点情報はVBOに変換しておく
+        this.vbo = [
+            this.createVbo(this.position),
+        ];
+
+        // クリアする背景色を指定
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+        this.running = false;
+        this.beginTime = Date.now();
     }
 
-    render(){
-        // レンダリング
+    render(){   // レンダリング処理（描画処理）
+        let gl = this.gl;
+
+        if(this.running == true){
+            // アニメーション実行処理
+            requestAnimationFrame(this.render);
+        }
+
+        // 経過時間を取得
+        this.nowTime = (Date.now() - this.beginTime) / 1000;
+
+        // ウィンドウサイズぴったりにcanvasのサイズを調整
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+
+        // webGLのviewportもcanvasの大きさに揃える
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+
+        // setupメソッド内で指定されていたクリアカラーでcanvasをクリアする
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // 使用するプログラムオブジェクトを指定
+        gl.useProgram(this.program);
+
+        // VBO と attribute Location を使って頂点を有効にする
+        this.setAttribute(this.vbo, this.attLocation, this.attStride);
+
+        // uniform location を使って uniform 変数にデータを転送する
+        this.setUniform([
+            [0.1, 1.0, 0.5, 1.0],
+        ], this.uniLocation, this.uniType);
+
+        gl.drawArrays(gl.POINTS, 0, this.position.length / 3);
     }
 
     /**
@@ -104,7 +196,7 @@ class WebGLFrame
      * @param {WebGLShader} fragment    - フラグメントシェーダオブジェクト
      * @return {WebGLProgram} プログラムオブジェクト
      */
-    crateProgram(vertex, fragment){
+    createProgram(vertex, fragment){
         if(this.gl == null){
             throw new Error('webgl not initialized');
         }
@@ -113,7 +205,7 @@ class WebGLFrame
         let program = gl.createProgram();
         gl.attachShader(program, vertex);
         gl.attachShader(program, fragment);
-        gl.linkProgarm();
+        gl.linkProgram(program);
 
         if(gl.getProgramParameter(program, gl.LINK_STATUS)){
             gl.useProgram(program);
@@ -137,7 +229,7 @@ class WebGLFrame
         
         let gl = this.gl;
         value.forEach((value, index) => {
-            let type = unitL[index];
+            let type = uniT[index];
             if(type.includes('Matrix') === true){
                 gl[type](uniL[index], false, v);
             }else{
@@ -222,10 +314,11 @@ class WebGLFrame
         }
 
         let gl = this.gl;
+
         vbo.forEach((value, index) => {
             gl.bindBuffer(gl.ARRAY_BUFFER, value);
             gl.enableVertexAttribArray(attL[index]);
-            gl.vertexAttribPointer(attL[index], attS[index], gl.FROAT, false, 0, 0);
+            gl.vertexAttribPointer(attL[index], attS[index], gl.FLOAT, false, 0, 0);
         });
 
         if(ibo != null){
