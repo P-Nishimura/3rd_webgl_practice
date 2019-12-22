@@ -17,7 +17,7 @@ class WebGLFrame
         this.canvas     = null;
         this.gl         = null;
         this.running    = false;
-        this.beginTime = 0;
+        this.beginTime  = 0;
         this.nowTime    = 0;
 
         this.render = this.render.bind(this);
@@ -67,18 +67,22 @@ class WebGLFrame
                 // リンクが正しく完了したら attribute location をプログラムオブジェクトより取得する 
                 this.attLocation = [
                     gl.getAttribLocation(this.program, 'position'),
+                    gl.getAttribLocation(this.program, 'ratio'),
                 ];
 
                 this.attStride = [
                     3,
+                    1
                 ];
 
                 this.uniLocation = [
                     gl.getUniformLocation(this.program, 'globalColor'),
+                    gl.getUniformLocation(this.program, 'time')
                 ];
 
                 this.uniType = [
                     'uniform4fv',
+                    'uniform1f'
                 ];
 
                 resolve();
@@ -90,23 +94,24 @@ class WebGLFrame
     setup(){    // レンダリングの前準備
         let gl = this.gl;
 
-        this.position = [
-            0.0, 0.0, 0.0,
-            -0.5, 0.5, 0.0,
-            0.5, 0.5, 0.0,
-            -0.5, -0.5, 0.0,
-            0.5, -0.5, 0.0
-        ];
+        const VERTEX_COUNT = 100;
+        this.position = [];
+        this.ratio = [];
+        for(let i = 0; i < VERTEX_COUNT; ++i){
+            this.position.push(0.0, 0.0, 0.0);
+            this.ratio.push(i / VERTEX_COUNT);
+        }
 
         // 定義した頂点情報はVBOに変換しておく
         this.vbo = [
             this.createVbo(this.position),
+            this.createVbo(this.ratio)
         ];
 
         // クリアする背景色を指定
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-        this.running = false;
+        this.running = true;
         this.beginTime = Date.now();
     }
 
@@ -139,7 +144,8 @@ class WebGLFrame
 
         // uniform location を使って uniform 変数にデータを転送する
         this.setUniform([
-            [0.1, 1.0, 0.5, 1.0],
+            [0.5, 0.5, 1.0, 1.0],
+            this.nowTime
         ], this.uniLocation, this.uniType);
 
         gl.drawArrays(gl.POINTS, 0, this.position.length / 3);
